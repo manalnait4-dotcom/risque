@@ -1,9 +1,14 @@
 import streamlit as st
 from auth import set_role, login_hse
 
+# ------------------------------------------------------------
+# Config de la page
+# ------------------------------------------------------------
 st.set_page_config(page_title="SafeWork – Sécurité & Prévention", layout="wide")
 
-# ---- Style minimal pro ----
+# ------------------------------------------------------------
+# Style minimal pro
+# ------------------------------------------------------------
 st.markdown(
     """
     <style>
@@ -22,7 +27,9 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---- En-tête ----
+# ------------------------------------------------------------
+# En-tête
+# ------------------------------------------------------------
 st.markdown('<div class="wrapper">', unsafe_allow_html=True)
 st.markdown(
     """
@@ -35,31 +42,41 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ---- Carte de connexion (seule chose visible au départ) ----
+# ------------------------------------------------------------
+# Carte de connexion (seule chose visible au départ)
+# ------------------------------------------------------------
 st.markdown('<div class="card">', unsafe_allow_html=True)
 st.markdown("<h3>Connexion</h3>", unsafe_allow_html=True)
 
-# options + valeur par défaut
+# Options + valeur par défaut
 options_roles = ["—", "Opérateur / Chef d'atelier", "Responsable HSE"]
 role_choice = st.selectbox("Je suis", options_roles, index=0, key="role_choice")
 
-# init états session
+# Init des états session (si pas déjà présents)
 st.session_state.setdefault("go_op", False)
 st.session_state.setdefault("go_hse", False)
 st.session_state.setdefault("mdp_try", 0)
 
+# ------------------------------------------------------------
+# Fonction de redirection multipage
+# ------------------------------------------------------------
 def safe_switch(page_path: str):
     """
     Redirige vers une page multipage.
-    Si st.switch_page n'existe pas (version Streamlit trop ancienne), propose un lien cliquable.
+    - Si st.switch_page existe (Streamlit récent) => redirection directe
+    - Sinon, on affiche un lien cliquable vers la page
     """
     try:
-        # Streamlit >= 1.25 environ
+        # Streamlit >= 1.25 (approx.)
         st.switch_page(page_path)
     except Exception:
         st.info("Redirection automatique indisponible dans votre version de Streamlit.")
-        # lien manuel vers la page (nécessite multipage activé)
-        st.page_link(page_path, label="➡️ Ouvrir la page", icon="👉")
+        # IMPORTANT : label obligatoire
+        st.page_link(page_path, label="➡️ Ouvrir la page")
+
+# ------------------------------------------------------------
+# Logique des rôles
+# ------------------------------------------------------------
 
 # Redirection auto vers l'espace Opérateur
 if role_choice == "Opérateur / Chef d'atelier":
@@ -96,7 +113,11 @@ elif role_choice == "Responsable HSE":
         for k in ["go_op", "go_hse", "mdp_try", "pwd_hse", "role_choice"]:
             if k in st.session_state:
                 del st.session_state[k]
-        st.experimental_rerun()
+        # Remplace st.experimental_rerun() (déprécié)
+        st.rerun()
 
+# ------------------------------------------------------------
+# Fermeture des conteneurs
+# ------------------------------------------------------------
 st.markdown("</div>", unsafe_allow_html=True)  # fin .card
 st.markdown("</div>", unsafe_allow_html=True)  # fin .wrapper

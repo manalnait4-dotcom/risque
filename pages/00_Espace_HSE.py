@@ -16,7 +16,7 @@ pages_hse = {
         " Menu Personnel": "30_Personnel_Menu",
         " Fiches de poste": "31_Personnel_Fiches_de_poste",
         " Formation": "32_Personnel_Formation",
-        " Suivi EPI": "33_Personnel_Suivi_EPI"
+        " Check List": "33_Personnel__Check_List"
     },
     "Documents": {
         " Menu Documents": "50_Documents_Menu",
