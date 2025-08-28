@@ -1,123 +1,112 @@
 import streamlit as st
-from auth import set_role, login_hse
+import bcrypt
 
-# ------------------------------------------------------------
-# Config de la page
-# ------------------------------------------------------------
-st.set_page_config(page_title="SafeWork – Sécurité & Prévention", layout="wide")
-
-# ------------------------------------------------------------
-# Style minimal pro
-# ------------------------------------------------------------
-st.markdown(
-    """
-    <style>
-    #MainMenu{visibility:hidden;} header{visibility:hidden;} footer{visibility:hidden;}
-    .wrapper{max-width:960px;margin:0 auto;padding:2.2rem 1.2rem;}
-    .hero{text-align:center;margin:0 0 1.2rem;}
-    .hero .quote{color:#888;font-size:16px;font-style:italic;margin:0 0 6px;}
-    .hero .title{font-size:60px;line-height:1.05;font-family:Roboto,system-ui,Segoe UI,Arial,sans-serif;color:#0B3954;margin:0;}
-    .hero .subtitle{font-size:18px;color:#5b6b7a;margin:6px 0 0;}
-    .card{max-width:520px;margin:22px auto;background:#fff;border:1px solid #e8edf2;border-radius:14px;
-          box-shadow:0 10px 24px rgba(11,57,84,0.08);padding:18px 18px;}
-    .card h3{margin:0 0 12px;font-size:20px;color:#0B3954;}
-    .notice{max-width:960px;margin:0.8rem auto 0;color:#6b7280;font-size:14px;text-align:center;}
-    </style>
-    """,
-    unsafe_allow_html=True,
+# ----------------------------------------------------
+# CONFIG + STYLE (masquer sidebar, header, footer, badge)
+# ----------------------------------------------------
+st.set_page_config(
+    page_title="SafeWork – HSE",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
-# ------------------------------------------------------------
-# En-tête
-# ------------------------------------------------------------
-st.markdown('<div class="wrapper">', unsafe_allow_html=True)
-st.markdown(
+st.markdown("""
+<style>
+/* Masquer le menu hamburger, header, footer */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* Masquer toute la sidebar Streamlit */
+[data-testid="stSidebar"] {display: none !important;}
+
+/* Optionnel: badge "Hosted with Streamlit" */
+.stApp [data-testid="stDecoration"] {display: none !important;}
+.stApp a[href*="streamlit.io"] {display: none !important;}
+
+/* Petite carte centrale */
+.login-card {
+  max-width: 520px;
+  margin: 0 auto;
+  background: #ffffff;
+  border: 1px solid #e8edf2;
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(11,57,84,0.08);
+  padding: 18px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ----------------------------------------------------
+# ÉTAT DE SESSION
+# ----------------------------------------------------
+if "auth" not in st.session_state:
+    st.session_state.auth = False
+    st.session_state.email = None
+
+# ----------------------------------------------------
+# FONCTIONS
+# ----------------------------------------------------
+def get_users() -> dict:
     """
-      <div class="hero">
-        <p class="quote">"Impliquer chacun pour sécuriser tous les postes."</p>
-        <h1 class="title">SafeWork –  Sécurité & Prévention</h1>
-        <p class="subtitle">Digitalisation HSE · Suivi des risques · Pilotage · Conformité</p>
-      </div>
-    """,
-    unsafe_allow_html=True,
-)
-
-# ------------------------------------------------------------
-# Carte de connexion (seule chose visible au départ)
-# ------------------------------------------------------------
-st.markdown('<div class="card">', unsafe_allow_html=True)
-st.markdown("<h3>Connexion</h3>", unsafe_allow_html=True)
-
-# Options + valeur par défaut
-options_roles = ["—", "Opérateur / Chef d'atelier", "Responsable HSE"]
-role_choice = st.selectbox("Je suis", options_roles, index=0, key="role_choice")
-
-# Init des états session (si pas déjà présents)
-st.session_state.setdefault("go_op", False)
-st.session_state.setdefault("go_hse", False)
-st.session_state.setdefault("mdp_try", 0)
-
-# ------------------------------------------------------------
-# Fonction de redirection multipage
-# ------------------------------------------------------------
-def safe_switch(page_path: str):
-    """
-    Redirige vers une page multipage.
-    - Si st.switch_page existe (Streamlit récent) => redirection directe
-    - Sinon, on affiche un lien cliquable vers la page
+    Récupère le bloc [users] depuis secrets.
+    En local: .streamlit/secrets.toml
+    Sur Streamlit Cloud: Settings -> Secrets (même contenu TOML)
     """
     try:
-        # Streamlit >= 1.25 (approx.)
-        st.switch_page(page_path)
+        return dict(st.secrets["users"])
     except Exception:
-        st.info("Redirection automatique indisponible dans votre version de Streamlit.")
-        # IMPORTANT : label obligatoire
-        st.page_link(page_path, label="➡️ Ouvrir la page")
+        return {}
 
-# ------------------------------------------------------------
-# Logique des rôles
-# ------------------------------------------------------------
+def login(email: str, pwd: str) -> bool:
+    users = get_users()
+    if email in users:
+        stored_hash = users[email].encode()            # hash en bytes
+        return bcrypt.checkpw(pwd.encode(), stored_hash)
+    return False
 
-# Redirection auto vers l'espace Opérateur
-if role_choice == "Opérateur / Chef d'atelier":
-    set_role("operateur")
-    # éviter boucles/recharges : on redirige une seule fois
-    if not st.session_state["go_op"]:
-        st.session_state["go_op"] = True
-        safe_switch("pages/01_Espace_Operateur.py")
+def go_hse_page():
+    """Basculer vers la page HSE (selon la version de Streamlit)."""
+    try:
+        st.switch_page("pages/00_Espace_HSE.py")
+    except Exception:
+        # Si st.switch_page indisponible, proposer un lien
+        st.page_link("pages/00_Espace_HSE.py", label=" Accéder à l’espace HSE", icon="🔐")
 
-# Redirection auto vers l'espace HSE si mot de passe valide
-elif role_choice == "Responsable HSE":
-    pwd = st.text_input("Mot de passe", type="password", key="pwd_hse")
-    col_a, col_b = st.columns([1, 1])
-    with col_a:
-        valider = st.button("Se connecter", key="btn_login_hse", type="primary")
-    with col_b:
-        reinit = st.button("Réinitialiser", key="btn_reset")
+def logout():
+    st.session_state.auth = False
+    st.session_state.email = None
+    st.experimental_rerun()
 
-    if valider:
-        if login_hse(pwd):
-            st.session_state["go_hse"] = True
-            st.session_state["mdp_try"] = 0  # reset compteur essais
-            safe_switch("pages/00_Espace_HSE.py")
+# ----------------------------------------------------
+# UI
+# ----------------------------------------------------
+st.title("SafeWork – Sécurité & Prévention")
+st.caption("Digitalisation HSE · Suivi des risques · Pilotage · Conformité")
+st.write("")
+
+if not st.session_state.auth:
+    st.markdown('<div class="login-card">', unsafe_allow_html=True)
+    st.subheader(" Connexion Responsable HSE")
+
+    with st.form("login_form"):
+        email = st.text_input("Adresse e-mail", placeholder="prenom.nom@entreprise.com")
+        pwd = st.text_input("Mot de passe", type="password")
+        ok = st.form_submit_button("Se connecter")
+
+    if ok:
+        if login(email, pwd):
+            st.session_state.auth = True
+            st.session_state.email = email
+            st.success("Connexion réussie ")
+            go_hse_page()
         else:
-            st.session_state["mdp_try"] += 1
-            essais_restants = max(0, 3 - st.session_state["mdp_try"])
-            if essais_restants > 0:
-                st.error(f"Mot de passe incorrect. Il reste {essais_restants} essai(s).")
-            else:
-                st.error("Accès bloqué après 3 essais. Relancez l’application.")
-                st.stop()
+            st.error("E-mail ou mot de passe invalide ")
 
-    if reinit:
-        for k in ["go_op", "go_hse", "mdp_try", "pwd_hse", "role_choice"]:
-            if k in st.session_state:
-                del st.session_state[k]
-        # Remplace st.experimental_rerun() (déprécié)
-        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-# ------------------------------------------------------------
-# Fermeture des conteneurs
-# ------------------------------------------------------------
-st.markdown("</div>", unsafe_allow_html=True)  # fin .card
-st.markdown("</div>", unsafe_allow_html=True)  # fin .wrapper
+else:
+    st.success(f"Connecté : **{st.session_state.email}**")
+    go_hse_page()
+    if st.button("Se déconnecter"):
+        logout()

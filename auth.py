@@ -1,24 +1,29 @@
 import streamlit as st
-HSE_PASSWORD = "filmod" 
+import bcrypt
 
-def set_role(role: str):
-    """Mémorise le rôle courant ('operateur' ou 'hse')."""
-    st.session_state["role"] = role
+def check_credentials(email: str, password: str) -> bool:
+    """Retourne True si l'email est autorisé et le mot de passe est bon (bcrypt)."""
+    allowed = set(st.secrets["auth"]["allowed_emails"])
+    if email not in allowed:
+        return False
 
-def login_hse(pwd: str) -> bool:
-    """Vérifie le mot de passe HSE et mémorise l'état de connexion."""
-    if "mdp_try" not in st.session_state:
-        st.session_state["mdp_try"] = 0
-    if pwd == HSE_PASSWORD:
-        st.session_state["mdp_ok"] = True
-        st.session_state["role"] = "hse"
-        return True
-    st.session_state["mdp_try"] += 1
-    return False
+    hashed = st.secrets["auth"]["passwords"].get(email)
+    if not hashed:
+        return False
 
-def require_hse():
-    """À placer en haut de chaque page réservée HSE."""
-    if st.session_state.get("role") != "hse" or not st.session_state.get("mdp_ok"):
-        st.error(" Accès réservé au Responsable HSE.")
-        st.page_link("app.py", label="↩ Retour à l'accueil")
-        st.stop()
+    try:
+        return bcrypt.checkpw(password.encode(), hashed.encode())
+    except Exception:
+        return False
+
+def login_form():
+    """Affiche le formulaire et retourne (ok, email)."""
+    with st.form("login"):
+        email = st.text_input("E-mail", key="login_email")
+        pwd = st.text_input("Mot de passe", type="password", key="login_pwd")
+        ok = st.form_submit_button("Se connecter")
+    if ok and check_credentials(email, pwd):
+        return True, email
+    elif ok:
+        st.error("Identifiants invalides")
+    return False, None
